@@ -9,9 +9,11 @@ Install via `pip install pyusb`
 """
 
 from __future__ import unicode_literals
-from builtins import str
+from builtins import str, bytes
+from brother_ql.printer import Status, PrinterError, ErrorInformations
 
 import time
+import struct
 
 import usb.core
 import usb.util
@@ -146,7 +148,34 @@ class BrotherQLBackendPyUSB(BrotherQLBackendGeneric):
             raise NotImplementedError('Unknown strategy')
 
     def _write(self, data):
-        self.write_dev.write(data, int(self.write_timeout))
+        try:
+            timeout = self.write_timeout
+            timeout = 5000.0
+            self.write_dev.write(data, int(timeout))
+            return
+        except:
+            # self.write_dev.write(b'\x1B\x69\x53')
+            length=128
+            for i in range(10):
+                data = self.read_dev.read(length)
+                if data:
+                    break
+                    continue
+                time.sleep(.02)
+
+            if len(data) < 32 :
+                raise ValueError("failed to read status")
+                return
+
+            status = Status.from_bytes(data)            
+            if status.errors:
+                for error in ErrorInformations :
+                    if error.value & status.error_information :                        
+                        print("error.description: %s" %(error.description))
+                        raise ValueError(error.description)
+                        break
+                else:
+                    print("Unknown error description !!!")
 
     def _dispose(self):
         usb.util.dispose_resources(self.dev)

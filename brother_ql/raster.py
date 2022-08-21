@@ -1,3 +1,11 @@
+"""
+This module contains the implementation of the raster language
+of the Brother QL-series label printers according to their
+documentation and to reverse engineering efforts.
+
+The central piece of code in this module is the class
+:py:class:`BrotherQLRaster`.
+"""
 
 from builtins import bytes
 
@@ -12,7 +20,6 @@ from .devicedependent import models, \
                              min_max_feed, \
                              min_max_length_dots, \
                              number_bytes_per_row, \
-                             right_margin_addition, \
                              compressionsupport, \
                              cuttingsupport, \
                              expandedmode, \
@@ -29,6 +36,21 @@ except: # Py2
 logger = logging.getLogger(__name__)
 
 class BrotherQLRaster(object):
+
+    """
+    This class facilitates the creation of a complete set
+    of raster instructions by adding them one after the other
+    using the methods of the class. Each method call is adding
+    instructions to the member variable :py:attr:`data`.
+
+    Instatiate the class by providing the printer
+    model as argument.
+
+    :param str model: Choose from the list of available models.
+
+    :ivar bytes data: The resulting bytecode with all instructions.
+    :ivar bool exception_on_warning: If set to True, an exception is raised if trying to add instruction which are not supported on the selected model. If set to False, the instruction is simply ignored and a warning sent to logging/stderr.
+    """
 
     def __init__(self, model='QL-500'):
         if model not in models:
@@ -57,7 +79,7 @@ class BrotherQLRaster(object):
         else:
             logger.warning(problem)
 
-    def unsupported(self, problem):
+    def _unsupported(self, problem):
         """
         Raises BrotherQLUnsupportedCmd if
         exception_on_warning is set to True.
@@ -86,7 +108,7 @@ class BrotherQLRaster(object):
         the mode change (others are in raster mode already).
         """
         if self.model not in modesetting:
-            self.unsupported("Trying to switch the operating mode on a printer that doesn't support the command.")
+            self._unsupported("Trying to switch the operating mode on a printer that doesn't support the command.")
             return
         self.data += b'\x1B\x69\x61\x01' # ESC i a
 
@@ -139,24 +161,24 @@ class BrotherQLRaster(object):
 
     def add_autocut(self, autocut = False):
         if self.model not in cuttingsupport:
-            self.unsupported("Trying to call add_autocut with a printer that doesn't support it")
+            self._unsupported("Trying to call add_autocut with a printer that doesn't support it")
             return
         self.data += b'\x1B\x69\x4D' # ESC i M
         self.data += bytes([autocut << 6])
 
     def add_cut_every(self, n=1):
         if self.model not in cuttingsupport:
-            self.unsupported("Trying to call add_cut_every with a printer that doesn't support it")
+            self._unsupported("Trying to call add_cut_every with a printer that doesn't support it")
             return
         self.data += b'\x1B\x69\x41' # ESC i A
         self.data += bytes([n & 0xFF])
 
     def add_expanded_mode(self):
         if self.model not in expandedmode:
-            self.unsupported("Trying to set expanded mode (dpi/cutting at end) on a printer that doesn't support it")
+            self._unsupported("Trying to set expanded mode (dpi/cutting at end) on a printer that doesn't support it")
             return
         if self.two_color_printing and not self.two_color_support:
-            self.unsupported("Trying to set two_color_printing in expanded mode on a printer that doesn't support it.")
+            self._unsupported("Trying to set two_color_printing in expanded mode on a printer that doesn't support it.")
             return
         self.data += b'\x1B\x69\x4B' # ESC i K
         flags = 0x00
@@ -170,8 +192,16 @@ class BrotherQLRaster(object):
         self.data += struct.pack('<H', dots)
 
     def add_compression(self, compression=True):
+        """
+        Add an instruction enabling or disabling compression for the transmitted raster image lines.
+        Not all models support compression. If the specific model doesn't support it but this method
+        is called trying to enable it, either a warning is set or an exception is raised depending on
+        the value of :py:attr:`exception_on_warning`
+
+        :param bool compression: Whether compression should be on or off
+        """
         if self.model not in compressionsupport:
-            self.unsupported("Trying to set compression on a printer that doesn't support it")
+            self._unsupported("Trying to set compression on a printer that doesn't support it")
             return
         self._compression = compression
         self.data += b'\x4D' # M
@@ -185,7 +215,14 @@ class BrotherQLRaster(object):
         return nbpr*8
 
     def add_raster_data(self, image, second_image=None):
-        """ image: Pillow Image() """
+        """
+        Add the image data to the instructions.
+        The provided image has to be binary (every pixel
+        is either black or white).
+
+        :param PIL.Image.Image image: The image to be converted and added to the raster instructions
+        :param PIL.Image.Image second_image: A second image with a separate color layer (red layer for the QL-800 series)
+        """
         logger.debug("raster_image_size: {0}x{1}".format(*image.size))
         if image.size[0] != self.get_pixel_width():
             fmt = 'Wrong pixel width: {}, expected {}'
@@ -208,13 +245,18 @@ class BrotherQLRaster(object):
         while start + row_len <= frame_len:
             for i, frame in enumerate(frames):
                 row = frame[start:start+row_len]
-                if second_image:
-                    file_str.write(b'\x77\x01' if i == 0 else b'\x77\x02')
-                else:
-                    file_str.write(b'\x67\x00')
                 if self._compression:
                     row = packbits.encode(row)
-                file_str.write(bytes([len(row)]))
+                translen = len(row) # number of bytes to be transmitted
+                if self.model.startswith('PT'):
+                    file_str.write(b'\x47')
+                    file_str.write(bytes([translen%256, translen//256]))
+                else:
+                    if second_image:
+                        file_str.write(b'\x77\x01' if i == 0 else b'\x77\x02')
+                    else:
+                        file_str.write(b'\x67\x00')
+                    file_str.write(bytes([translen]))
                 file_str.write(row)
             start += row_len
         self.data += file_str.getvalue()

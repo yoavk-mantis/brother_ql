@@ -74,8 +74,9 @@ def send(instructions, printer_identifier=None, backend_identifier=None, blockin
             continue
         try:
             result = interpret_response(data)
-        except ValueError:
+        except ValueError as e:
             logger.error("TIME %.3f - Couln't understand response: %s", time.time()-start, data)
+            raise ValueError(e)
             continue
         status['printer_state'] = result
         logger.debug('TIME %.3f - result: %s', time.time()-start, result)
@@ -99,5 +100,5 @@ def send(instructions, printer_identifier=None, backend_identifier=None, blockin
         logger.warning('Printing potentially not successful?')
     if status['did_print'] and status['ready_for_next_job']:
         logger.info("Printing was successful. Waiting for the next job.")
-
+        print("===>Printing was successful")
     return status
