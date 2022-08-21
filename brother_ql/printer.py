@@ -380,7 +380,7 @@ class PrinterDevice(object):
                 break
             time.sleep(.02)
         else:
-            raise TimeoutError("Failed to read data from printer")
+            raise TimeoutError("Error: Failed to read data from printer")
         return Status.from_bytes(data)
 
     def info(self):
@@ -397,7 +397,7 @@ class PrinterDevice(object):
                     label_ = label
                     break
             else: # no match
-                raise RuntimeError("Unknown label type: {}mm x {}mm ({})".format(
+                raise RuntimeError("Error: Unknown label type: {}mm x {}mm ({})".format(
                     status.media_width,
                     status.media_length,
                     status.media_type.description,
@@ -408,7 +408,7 @@ class PrinterDevice(object):
                 model_ = model
                 break
         else: # no match
-            raise RuntimeError("Unknown model: {}".format(
+            raise RuntimeError("Error: Unknown model: {}".format(
                 status.series_model_code.description,
                 ))
 
@@ -430,7 +430,7 @@ class PrinterDevice(object):
                     break
                 time.sleep(.02)
             else:
-                raise TimeoutError("Failed to read data from printer")
+                raise TimeoutError("Error: Failed to read data from printer")
 
             status = Status.from_bytes(data)
 

@@ -100,5 +100,5 @@ def send(instructions, printer_identifier=None, backend_identifier=None, blockin
         logger.warning('Printing potentially not successful?')
     if status['did_print'] and status['ready_for_next_job']:
         logger.info("Printing was successful. Waiting for the next job.")
-        print("===>Printing was successful")
+        print("===>{'Success: Printing was successful'}")
     return status

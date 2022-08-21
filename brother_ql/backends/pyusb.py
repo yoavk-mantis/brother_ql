@@ -84,7 +84,7 @@ class BrotherQLBackendPyUSB(BrotherQLBackendGeneric):
                     self.dev = printer
                     break
             if self.dev is None:
-                raise ValueError('Device not found')
+                raise ValueError('Error: Device not found')
         elif isinstance(device_specifier, usb.core.Device):
             self.dev = device_specifier
         else:
@@ -164,7 +164,7 @@ class BrotherQLBackendPyUSB(BrotherQLBackendGeneric):
                 time.sleep(.02)
 
             if len(data) < 32 :
-                raise ValueError("failed to read status")
+                raise ValueError("Error: Failed to read status")
                 return
 
             status = Status.from_bytes(data)            
@@ -172,7 +172,7 @@ class BrotherQLBackendPyUSB(BrotherQLBackendGeneric):
                 for error in ErrorInformations :
                     if error.value & status.error_information :                        
                         print("error.description: %s" %(error.description))
-                        raise ValueError(error.description)
+                        raise ValueError(f"Error: {error.description}")
                         break
                 else:
                     print("Unknown error description !!!")

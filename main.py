@@ -171,4 +171,4 @@ if __name__ == '__main__':
     except ValueError as ve:
         ve1 = str(ve)
         ve1 = ve1.replace("{ValueError(", "") 
-        print("==> %s"%{ve1})
+        print("==>%s"%{ve1})
